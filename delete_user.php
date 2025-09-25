@@ -1,13 +1,28 @@
 <?php
+session_start();
 require_once 'models/UserModel.php';
 $userModel = new UserModel();
 
-$user = NULL; //Add new user
-$id = NULL;
-
-if (!empty($_GET['id'])) {
-    $id = $_GET['id'];
-    $userModel->deleteUserById($id);//Delete existing user
+// Chỉ cho phép POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    die("Phải gửi POST mới được xóa!");
 }
-header('location: list_users.php');
-?>
+
+// Kiểm tra CSRF token
+if (!isset($_POST['csrf_token'], $_SESSION['csrf_token']) || 
+    $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    die("CSRF token không hợp lệ!");
+}
+
+// Lấy ID từ POST
+$id = $_POST['id'] ?? null;
+if ($id) {
+    $userModel->deleteUserById($id);
+}
+
+// Xóa token sau khi dùng
+unset($_SESSION['csrf_token']);
+
+// Chuyển hướng về danh sách user
+header('Location: list_users.php');
+exit;
