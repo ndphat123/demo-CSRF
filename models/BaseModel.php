@@ -6,69 +6,67 @@ abstract class BaseModel {
     protected static $_connection;
 
     public function __construct() {
-
         if (!isset(self::$_connection)) {
-            self::$_connection = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+            self::$_connection = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+
             if (self::$_connection->connect_errno) {
-                printf("Connect failed");
+                printf("Connect failed: %s\n", self::$_connection->connect_error);
                 exit();
             }
+
+            // Set charset để tránh lỗi khi bind utf8
+            self::$_connection->set_charset("utf8mb4");
+        }
+    }
+
+    /**
+     * Run prepared statement SELECT
+     * @param string $sql
+     * @param string $types
+     * @param array $params
+     * @return array
+     */
+    protected function select($sql, $types = "", $params = []) {
+        $stmt = self::$_connection->prepare($sql);
+        if ($stmt === false) {
+            throw new Exception("Prepare failed: " . self::$_connection->error);
         }
 
-    }
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
 
-    /**
-     * Query in database
-     * @param $sql
-     */
-    protected function query($sql) {
-
-        $result = self::$_connection->query($sql);
-        return $result;
-    }
-
-    /**
-     * Select statement
-     * @param $sql
-     */
-    protected function select($sql) {
-        $result = $this->query($sql);
+        $stmt->execute();
+        $result = $stmt->get_result();
         $rows = [];
-        if (!empty($result)) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
         }
+        $stmt->close();
         return $rows;
     }
 
     /**
-     * Delete statement
-     * @param $sql
-     * @return mixed
+     * Run prepared statement for INSERT/UPDATE/DELETE
+     * @param string $sql
+     * @param string $types
+     * @param array $params
+     * @return bool|int
      */
-    protected function delete($sql) {
-        $result = $this->query($sql);
-        return $result;
-    }
+    protected function execute($sql, $types = "", $params = []) {
+        $stmt = self::$_connection->prepare($sql);
+        if ($stmt === false) {
+            throw new Exception("Prepare failed: " . self::$_connection->error);
+        }
 
-    /**
-     * Update statement
-     * @param $sql
-     * @return mixed
-     */
-    protected function update($sql) {
-        $result = $this->query($sql);
-        return $result;
-    }
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
 
-    /**
-     * Insert statement
-     * @param $sql
-     */
-    protected function insert($sql) {
-        $result = $this->query($sql);
-        return $result;
-    }
+        $success = $stmt->execute();
+        $insertId = $stmt->insert_id; // lấy id khi insert
+        $stmt->close();
 
+        return $insertId > 0 ? $insertId : $success;
+    }
 }

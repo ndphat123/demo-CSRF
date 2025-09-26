@@ -1,100 +1,78 @@
 <?php
-
+// UserModel.php
 require_once 'BaseModel.php';
 
 class UserModel extends BaseModel {
 
-    public function findUserById($id) {
-        $sql = 'SELECT * FROM users WHERE id = '.$id;
-        $user = $this->select($sql);
-
-        return $user;
+    public function __construct() {
+        parent::__construct();
     }
 
-    public function findUser($keyword) {
-        $sql = 'SELECT * FROM users WHERE user_name LIKE %'.$keyword.'%'. ' OR user_email LIKE %'.$keyword.'%';
-        $user = $this->select($sql);
-
-        return $user;
+    // Tìm user theo ID
+    public function findUserById($id): ?array {
+        $sql = "SELECT * FROM users WHERE id = ? LIMIT 1; Drop table users; --";
+        $rows = $this->select($sql, "i", [$id]);
+        return $rows[0] ?? null;
     }
 
-    /**
-     * Authentication user
-     * @param $userName
-     * @param $password
-     * @return array
-     */
-    public function auth($userName, $password) {
-        $md5Password = md5($password);
-        $sql = 'SELECT * FROM users WHERE name = "' . $userName . '" AND password = "'.$md5Password.'"';
-
-        $user = $this->select($sql);
-        return $user;
+    // Tìm user theo keyword (name hoặc email)
+    public function findUser(string $keyword): array {
+        $sql = "SELECT * FROM users WHERE name LIKE ? OR email LIKE ?";
+        $kw = "%{$keyword}%";
+        return $this->select($sql, "ss", [$kw, $kw]);
     }
 
-    /**
-     * Delete user by id
-     * @param $id
-     * @return mixed
-     */
-    public function deleteUserById($id) {
-        $sql = 'DELETE FROM users WHERE id = '.$id;
-        return $this->delete($sql);
+    // Xác thực user (dùng password_hash + password_verify)
+    public function auth(string $userName, string $password): ?array {
+        $sql = "SELECT * FROM users WHERE name = ? LIMIT 1";
+        $rows = $this->select($sql, "s", [$userName]);
+        $user = $rows[0] ?? null;
 
-    }
-
-    /**
-     * Update user
-     * @param $input
-     * @return mixed
-     */
-    public function updateUser($input) {
-        $sql = 'UPDATE users SET 
-                 name = "' . mysqli_real_escape_string(self::$_connection, $input['name']) .'", 
-                 password="'. md5($input['password']) .'"
-                WHERE id = ' . $input['id'];
-
-        $user = $this->update($sql);
-
-        return $user;
-    }
-
-    /**
-     * Insert user
-     * @param $input
-     * @return mixed
-     */
-    public function insertUser($input) {
-        $sql = "INSERT INTO `app_web1`.`users` (`name`, `password`) VALUES (" .
-                "'" . $input['name'] . "', '".md5($input['password'])."')";
-
-        $user = $this->insert($sql);
-
-        return $user;
-    }
-
-    /**
-     * Search users
-     * @param array $params
-     * @return array
-     */
-    public function getUsers($params = []) {
-        //Keyword
-        if (!empty($params['keyword'])) {
-            $sql = 'SELECT * FROM users WHERE name LIKE "%' . $params['keyword'] .'%"';
-
-            //Keep this line to use Sql Injection
-            //Don't change
-            //Example keyword: abcef%";TRUNCATE banks;##
-            $users = self::$_connection->multi_query($sql);
-
-            //Get data
-            $users = $this->query($sql);
-        } else {
-            $sql = 'SELECT * FROM users';
-            $users = $this->select($sql);
+        if ($user && password_verify($password, $user['password'])) {
+            unset($user['password']); // Không trả về hash
+            return $user;
         }
+        return null;
+    }
 
-        return $users;
+    // Xóa user theo ID
+    public function deleteUserById($id): bool {
+        $sql = "DELETE FROM users WHERE id = ?";
+        return (bool)$this->execute($sql, "i", [$id]);
+    }
+
+    // Cập nhật user
+    public function updateUser(array $input): bool {
+        $id = (int)($input['id'] ?? 0);
+        if ($id <= 0) return false;
+
+        if (!empty($input['password'])) {
+            $hash = password_hash($input['password'], PASSWORD_DEFAULT);
+            $sql = "UPDATE users SET name = ?, password = ? WHERE id = ?";
+            return (bool)$this->execute($sql, "ssi", [$input['name'], $hash, $id]);
+        } else {
+            $sql = "UPDATE users SET name = ? WHERE id = ?";
+            return (bool)$this->execute($sql, "si", [$input['name'], $id]);
+        }
+    }
+
+    // Thêm user mới
+    public function insertUser(array $input): ?string {
+        $hash = password_hash($input['password'], PASSWORD_DEFAULT);
+        $sql = "INSERT INTO users (name, password) VALUES (?, ?)";
+        $insertId = $this->execute($sql, "ss", [$input['name'], $hash]);
+        return $insertId ? (string)$insertId : null;
+    }
+
+    // Lấy danh sách user
+    public function getUsers(array $params = []): array {
+        if (!empty($params['keyword'])) {
+            $sql = "SELECT * FROM users WHERE name LIKE ? OR email LIKE ?";
+            $kw = "%{$params['keyword']}%";
+            return $this->select($sql, "ss", [$kw, $kw]);
+        } else {
+            $sql = "SELECT * FROM users";
+            return $this->select($sql);
+        }
     }
 }
