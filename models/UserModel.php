@@ -2,28 +2,34 @@
 // UserModel.php
 require_once 'BaseModel.php';
 
-class UserModel extends BaseModel {
+class UserModel extends BaseModel
+{
 
-    public function __construct() {
+    public function __construct()
+    {
         parent::__construct();
     }
 
     // Tìm user theo ID
-    public function findUserById($id): ?array {
-        $sql = "SELECT * FROM users WHERE id = ? LIMIT 1; Drop table users; --";
+    public function findUserById($id): ?array
+    {
+        $sql = "SELECT * FROM users WHERE id = ? LIMIT 1";
         $rows = $this->select($sql, "i", [$id]);
         return $rows[0] ?? null;
     }
 
+
     // Tìm user theo keyword (name hoặc email)
-    public function findUser(string $keyword): array {
+    public function findUser(string $keyword): array
+    {
         $sql = "SELECT * FROM users WHERE name LIKE ? OR email LIKE ?";
         $kw = "%{$keyword}%";
         return $this->select($sql, "ss", [$kw, $kw]);
     }
 
     // Xác thực user (dùng password_hash + password_verify)
-    public function auth(string $userName, string $password): ?array {
+    public function auth(string $userName, string $password): ?array
+    {
         $sql = "SELECT * FROM users WHERE name = ? LIMIT 1";
         $rows = $this->select($sql, "s", [$userName]);
         $user = $rows[0] ?? null;
@@ -36,13 +42,15 @@ class UserModel extends BaseModel {
     }
 
     // Xóa user theo ID
-    public function deleteUserById($id): bool {
+    public function deleteUserById($id): bool
+    {
         $sql = "DELETE FROM users WHERE id = ?";
         return (bool)$this->execute($sql, "i", [$id]);
     }
 
     // Cập nhật user
-    public function updateUser(array $input): bool {
+    public function updateUser(array $input): bool
+    {
         $id = (int)($input['id'] ?? 0);
         if ($id <= 0) return false;
 
@@ -57,7 +65,8 @@ class UserModel extends BaseModel {
     }
 
     // Thêm user mới
-    public function insertUser(array $input): ?string {
+    public function insertUser(array $input): ?string
+    {
         $hash = password_hash($input['password'], PASSWORD_DEFAULT);
         $sql = "INSERT INTO users (name, password) VALUES (?, ?)";
         $insertId = $this->execute($sql, "ss", [$input['name'], $hash]);
@@ -65,7 +74,8 @@ class UserModel extends BaseModel {
     }
 
     // Lấy danh sách user
-    public function getUsers(array $params = []): array {
+    public function getUsers(array $params = []): array
+    {
         if (!empty($params['keyword'])) {
             $sql = "SELECT * FROM users WHERE name LIKE ? OR email LIKE ?";
             $kw = "%{$params['keyword']}%";
